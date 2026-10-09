@@ -1,0 +1,13 @@
+import mongoose from 'mongoose';
+const { Schema, model } = mongoose;
+const ref = (n) => ({ type: Schema.Types.ObjectId, ref: n });
+const req = { type: String, required: true, trim: true };
+export const ISSUE_STATUSES = ['Reported', 'Assigned', 'In Progress', 'Resolved'];
+export const User = model('User', new Schema({ name: req, email: { ...req, unique: true, lowercase: true }, password: { type: String, required: true }, role: { type: String, enum: ['STUDENT', 'FACULTY', 'ADMIN'], default: 'STUDENT' } }, { timestamps: true }));
+export const Attendance = model('Attendance', new Schema({ student: ref('User'), subject: String, present: Number, total: Number }));
+export const Timetable = model('Timetable', new Schema({ day: String, start: String, end: String, subject: String, faculty: String, room: String }));
+export const Announcement = model('Announcement', new Schema({ title: req, body: req, category: { type: String, enum: ['Notice', 'Exam', 'Holiday', 'Event', 'Emergency'], default: 'Notice' }, author: ref('User') }, { timestamps: true }));
+export const Event = model('Event', new Schema({ name: req, date: { type: Date, required: true }, time: String, location: String, organizer: String, description: String, category: { type: String, enum: ['Technical', 'Cultural', 'Sports', 'Workshop', 'Club', 'Seminar'], default: 'Technical' }, registrations: [ref('User')] }));
+export const Issue = model('Issue', new Schema({ title: req, description: req, category: { type: String, enum: ['Electrical', 'Cleanliness', 'Water', 'Wi-Fi', 'Classroom', 'Hostel', 'Transport', 'Security', 'Other'], default: 'Other' }, location: String, priority: { type: String, enum: ['Low', 'Medium', 'High'], default: 'Medium' }, status: { type: String, enum: ISSUE_STATUSES, default: 'Reported' }, department: String, reporter: ref('User') }, { timestamps: true }));
+export const Notification = model('Notification', new Schema({ user: ref('User'), text: String, read: { type: Boolean, default: false } }, { timestamps: true }));
+export const Facility = model('Facility', new Schema({ name: String, description: String, x: Number, y: Number }));

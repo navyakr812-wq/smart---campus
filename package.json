@@ -1,0 +1,22 @@
+{
+  "name": "campusnow",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install --prefix server && npm install --prefix client",
+    "build:client": "npm run build --prefix client",
+    "build:server": "npm run build --prefix server",
+    "build": "npm run install:all && npm run build:client && npm run build:server",
+    "start": "node server/dist/index.js",
+    "dev:server": "npm run dev --prefix server",
+    "dev:client": "npm run dev --prefix client"
+  },
+  "keywords": [
+    "campusnow",
+    "hackathon",
+    "smart-campus",
+    "student-companion"
+  ],
+  "author": "CampusNow Team",
+  "license": "MIT"
+}

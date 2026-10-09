@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Smart Campus</title>
+<style>
+:root{--bg:#f5f7fb;--card:#fff;--ink:#0f172a;--mut:#64748b;--pri:#4f46e5;--line:#e2e8f0}
+@media(prefers-color-scheme:dark){:root{--bg:#0b1020;--card:#151b2f;--ink:#e8ecf8;--mut:#93a0bd;--line:#26304d}}
+*{box-sizing:border-box}body{margin:0;font:15px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+button,input,select,textarea{font:inherit;color:inherit}
+.btn{background:var(--pri);color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer}.btn.alt{background:transparent;color:var(--ink);border:1px solid var(--line)}
+input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);margin:4px 0 10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+#app{display:flex;min-height:100vh}nav{width:210px;padding:16px;border-right:1px solid var(--line);background:var(--card)}
+nav button{display:block;width:100%;text-align:left;background:none;border:0;padding:9px 10px;border-radius:8px;cursor:pointer;margin-bottom:2px}
+nav button.on{background:var(--pri);color:#fff}main{flex:1;padding:20px;min-width:0}
+.badge{display:inline-block;padding:1px 9px;border-radius:99px;font-size:12px;background:var(--line)}.mut{color:var(--mut)}
+.bar{height:10px;border-radius:99px;background:var(--line);overflow:hidden}.bar i{display:block;height:100%;background:var(--pri)}
+.map{position:relative;height:340px;background:var(--line);border-radius:12px}.pin{position:absolute;transform:translate(-50%,-50%);background:var(--card);border:2px solid var(--pri);border-radius:8px;padding:2px 8px;font-size:12px;cursor:pointer}.pin.hit{background:var(--pri);color:#fff}
+#toast{position:fixed;right:16px;bottom:16px;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;display:none}
+.me{text-align:right}.me span{background:var(--pri);color:#fff}.msg span{display:inline-block;padding:6px 12px;border-radius:12px;background:var(--line);max-width:80%}
+@media(max-width:700px){#app{flex-direction:column}nav{width:100%;display:flex;overflow-x:auto;gap:4px;border-right:0;border-bottom:1px solid var(--line)}nav button{width:auto;white-space:nowrap}}
+</style></head><body><div id="app"></div><div id="toast"></div>
+<script>
+const $=s=>document.querySelector(s);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let user=null,view='dashboard',chat=[];
+const toast=m=>{const t=$('#toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',2600)};
+async function api(p,o={}){const r=await fetch('/api'+p,{method:o.method||'GET',headers:{'Content-Type':'application/json',Authorization:'Bearer '+(localStorage.sc_token||'')},body:o.body&&JSON.stringify(o.body)});
+ const d=await r.json().catch(()=>({}));if(r.status===401&&localStorage.sc_token){logout();}if(!r.ok)throw new Error(d.message||'Request failed');return d}
+const logout=()=>{localStorage.removeItem('sc_token');user=null;boot()};
+const NAV={STUDENT:['dashboard','ai','timetable','attendance','events','issues','facilities','notifications','announcements'],
+ FACULTY:['dashboard','timetable','announcements','issues','events','facilities','notifications'],
+ ADMIN:['analytics','announcements','events','issues','facilities','notifications']};
+const LABEL={ai:'CampusAI',analytics:'Analytics'};
+async function boot(){
+ if(localStorage.sc_token&&!user){try{user=await api('/me')}catch{}}
+ if(!user)return loginView();
+ view=NAV[user.role].includes(view)?view:NAV[user.role][0];
+ $('#app').innerHTML=`<nav><b>🎓 Smart Campus</b><p class="mut">${esc(user.name)} · ${user.role}</p>${NAV[user.role].map(v=>`<button class="${v==view?'on':''}" onclick="go('${v}')">${LABEL[v]||v[0].toUpperCase()+v.slice(1)}</button>`).join('')}<button onclick="logout()">Log out</button></nav><main id="main">Loading…</main>`;
+ render();
+}
+const go=v=>{view=v;boot()};
+function loginView(){
+ $('#app').innerHTML=`<main style="max-width:420px;margin:8vh auto"><h1>One Campus.<br>One Smart Platform.</h1><p class="mut">Connect, discover, manage, and experience your campus smarter.</p>
+ <div class="card"><input id="n" placeholder="Name (sign up only)"><input id="e" placeholder="Email"><input id="p" type="password" placeholder="Password (8+ characters)">
+ <button class="btn" onclick="auth('login')">Log in</button> <button class="btn alt" onclick="auth('register')">Sign up as student</button></div></main>`;
+}
+async function auth(kind){try{const d=await api('/auth/'+kind,{method:'POST',body:{name:$('#n').value,email:$('#e').value,password:$('#p').value}});localStorage.sc_token=d.token;user=d.user;view='';boot()}catch(e){toast(e.message)}}
+const bar=p=>`<div class="bar"><i style="width:${p}%"></i></div>`;
+const fmt=d=>new Date(d).toLocaleDateString(undefined,{day:'numeric',month:'short'});
+const V={
+async dashboard(){const d=await api('/dashboard');return `<h2>Welcome, ${esc(user.name)}</h2><div class="grid">
+ <div class="card"><b>Next class</b><p>${d.next?`${esc(d.next.subject)}<br><span class="mut">${esc(d.next.start)} · ${esc(d.next.room)} · ${esc(d.next.faculty)}</span>`:'No more classes today'}</p></div>
+ <div class="card"><b>Attendance</b><h1>${d.attendance}%</h1>${bar(d.attendance)}</div>
+ <div class="card"><b>Notifications</b><h1>${d.unread}</h1><span class="mut">unread</span></div></div>
+ <div class="grid"><div class="card"><b>Upcoming events</b>${d.events.map(e=>`<p>${esc(e.name)}<br><span class="mut">${fmt(e.date)} · ${esc(e.location)}</span></p>`).join('')||'<p class="mut">None</p>'}</div>
+ <div class="card"><b>Announcements</b>${d.announcements.map(a=>`<p><span class="badge">${esc(a.category)}</span> ${esc(a.title)}</p>`).join('')||'<p class="mut">None</p>'}</div></div>`},
+async ai(){return `<h2>CampusAI</h2><div class="card"><div id="chat">${chat.map(m=>`<p class="${m.me?'me':'msg'}"><span>${esc(m.t)}</span></p>`).join('')||'<p class="mut">Try: "When is my next class?", "What is my attendance?", "Where is the library?"</p>'}</div><input id="q" placeholder="Ask CampusAI…" onkeydown="if(event.key==='Enter')ask()"><button class="btn" onclick="ask()">Send</button> <span class="mut">Rule-based assistant using campus data</span></div>`},
+async timetable(){const t=await api('/timetable');const days=['Monday','Tuesday','Wednesday','Thursday','Friday'];return `<h2>Timetable</h2><div class="grid">${days.map(d=>`<div class="card"><b>${d}${d==t.today?' (today)':''}</b>${t.classes.filter(c=>c.day==d).map(c=>`<p style="${t.next&&t.next._id==c._id?'color:var(--pri);font-weight:600':''}">${esc(c.start)}–${esc(c.end)} ${esc(c.subject)}<br><span class="mut">${esc(c.faculty)} · ${esc(c.room)}</span></p>`).join('')}</div>`).join('')}</div>`},
+async attendance(){const a=await api('/attendance');return `<h2>Attendance: ${a.overall}%</h2>${a.subjects.map(s=>`<div class="card"><b>${esc(s.subject)}</b> <span class="mut">${s.present} present · ${s.absent} absent</span><h3>${s.percent}%</h3>${bar(s.percent)}</div>`).join('')||'<p class="mut">No records</p>'}`},
+async events(){const ev=await api('/events');return `<h2>Events</h2>${user.role=='ADMIN'?`<div class="card"><b>Create event</b><input id="en" placeholder="Name"><input id="ed" type="date"><input id="et" placeholder="Time (e.g. 10:00)"><input id="el" placeholder="Location"><input id="eo" placeholder="Organizer"><select id="ec">${['Technical','Cultural','Sports','Workshop','Club','Seminar'].map(c=>`<option>${c}</option>`).join('')}</select><textarea id="edesc" placeholder="Description"></textarea><button class="btn" onclick="mkEvent()">Create</button></div>`:''}
+ <div class="grid">${ev.map(e=>`<div class="card"><span class="badge">${esc(e.category)}</span><h3>${esc(e.name)}</h3><p class="mut">${fmt(e.date)} · ${esc(e.time)} · ${esc(e.location)}<br>${esc(e.organizer)} · ${e.count} registered</p><p>${esc(e.description)}</p>${user.role=='STUDENT'?(e.registered?'<span class="badge">Registered ✓</span>':`<button class="btn" onclick="reg('${e._id}')">Register</button>`):''}</div>`).join('')}</div>`},
+async issues(){const is=await api('/issues');const st=['Reported','Assigned','In Progress','Resolved'];
+ return `<h2>Issues</h2>${user.role=='STUDENT'?`<div class="card"><b>Report an issue</b><input id="it" placeholder="Title"><textarea id="id" placeholder="Description"></textarea><select id="ic">${['Electrical','Cleanliness','Water','Wi-Fi','Classroom','Hostel','Transport','Security','Other'].map(c=>`<option>${c}</option>`).join('')}</select><input id="il" placeholder="Location"><select id="ip"><option>Low</option><option selected>Medium</option><option>High</option></select><button class="btn" onclick="mkIssue()">Submit</button></div>`:''}
+ ${is.map(i=>`<div class="card"><b>CI-${i._id.slice(-6).toUpperCase()}</b> <span class="badge">${esc(i.status)}</span> <span class="badge">${esc(i.priority)}</span><h3>${esc(i.title)}</h3><p class="mut">${esc(i.category)} · ${esc(i.location)} · ${esc(i.department)} · ${fmt(i.createdAt)}${i.reporter?.name?' · '+esc(i.reporter.name):''}</p>${bar((st.indexOf(i.status)+1)*25)}${user.role!='STUDENT'?`<select onchange="setSt('${i._id}',this.value)">${st.map(s=>`<option ${s==i.status?'selected':''}>${s}</option>`).join('')}</select>`:''}</div>`).join('')||'<p class="mut">No issues yet</p>'}`},
+async facilities(){const f=await api('/facilities');const q=(window.fq||'').toLowerCase();return `<h2>Campus map</h2><input placeholder="Search e.g. Library" value="${esc(window.fq||'')}" oninput="window.fq=this.value;V.facilities().then(h=>{$('#main').innerHTML=h;const i=$('#main input');i.focus();i.setSelectionRange(99,99)})">
+ <div class="map">${f.map(x=>`<div class="pin ${q&&x.name.toLowerCase().includes(q)?'hit':''}" style="left:${x.x}%;top:${x.y}%" title="${esc(x.description)}" onclick="toast('${esc(x.name)}: ${esc(x.description)}')">${esc(x.name)}</div>`).join('')}</div>`},
+async notifications(){const n=await api('/notifications');return `<h2>Notifications</h2><button class="btn alt" onclick="api('/notifications/read',{method:'POST'}).then(boot)">Mark all read</button><br><br>${n.map(x=>`<div class="card" style="${x.read?'opacity:.6':''}">${esc(x.text)}<br><span class="mut">${new Date(x.createdAt).toLocaleString()}</span></div>`).join('')||'<p class="mut">Nothing yet</p>'}`},
+async announcements(){const a=await api('/announcements'+(window.ac?'?category='+window.ac:''));const cats=['Notice','Exam','Holiday','Event','Emergency'];
+ return `<h2>Announcements</h2><select onchange="window.ac=this.value;render()"><option value="">All categories</option>${cats.map(c=>`<option ${window.ac==c?'selected':''}>${c}</option>`).join('')}</select>
+ ${user.role!='STUDENT'?`<div class="card"><input id="at" placeholder="Title"><textarea id="ab" placeholder="Body"></textarea><select id="acat">${cats.map(c=>`<option>${c}</option>`).join('')}</select><button class="btn" onclick="mkAnn()">Post</button></div>`:''}
+ ${a.map(x=>`<div class="card"><span class="badge">${esc(x.category)}</span> <b>${esc(x.title)}</b><p>${esc(x.body)}</p><span class="mut">${esc(x.author?.name)} · ${fmt(x.createdAt)}</span></div>`).join('')||'<p class="mut">None</p>'}`},
+async analytics(){const a=await api('/admin/analytics');const mx=Math.max(1,...a.issuesByCategory.map(c=>c.count));const mx2=Math.max(1,...a.eventParticipation.map(c=>c.count));
+ return `<h2>Analytics</h2><div class="grid">${[['Students',a.students],['Faculty',a.faculty],['Active events',a.activeEvents],['Open issues',a.openIssues],['Resolved',a.resolvedIssues],['Avg attendance',a.avgAttendance+'%']].map(([k,v])=>`<div class="card"><span class="mut">${k}</span><h1>${v}</h1></div>`).join('')}</div>
+ <div class="grid"><div class="card"><b>Issues by category</b>${a.issuesByCategory.map(c=>`<p>${esc(c.category)} (${c.count})${bar(c.count/mx*100)}</p>`).join('')||'<p class="mut">No issues</p>'}</div>
+ <div class="card"><b>Event participation</b>${a.eventParticipation.map(c=>`<p>${esc(c.name)} (${c.count})${bar(c.count/mx2*100)}</p>`).join('')}</div></div>`}};
+async function render(){try{$('#main').innerHTML=await V[view]()}catch(e){$('#main').innerHTML=`<div class="card">Could not load this page: ${esc(e.message)} <button class="btn" onclick="render()">Retry</button></div>`}}
+const act=async(fn,msg)=>{try{await fn();toast(msg);render()}catch(e){toast(e.message)}};
+const reg=id=>act(()=>api(`/events/${id}/register`,{method:'POST'}),'Registered!');
+const setSt=(id,status)=>act(()=>api('/issues/'+id,{method:'PATCH',body:{status}}),'Status updated');
+const mkIssue=()=>act(()=>api('/issues',{method:'POST',body:{title:$('#it').value,description:$('#id').value,category:$('#ic').value,location:$('#il').value,priority:$('#ip').value}}),'Issue reported');
+const mkEvent=()=>act(()=>api('/events',{method:'POST',body:{name:$('#en').value,date:$('#ed').value,time:$('#et').value,location:$('#el').value,organizer:$('#eo').value,category:$('#ec').value,description:$('#edesc').value}}),'Event created');
+const mkAnn=()=>act(()=>api('/announcements',{method:'POST',body:{title:$('#at').value,body:$('#ab').value,category:$('#acat').value}}),'Posted');
+async function ask(){const t=$('#q').value.trim();if(!t)return;chat.push({me:1,t});try{chat.push({t:(await api('/assistant',{method:'POST',body:{message:t}})).reply})}catch(e){chat.push({t:e.message})}render()}
+boot();
+</script></body></html>
